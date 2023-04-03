@@ -1,0 +1,15 @@
+[user]
+	name = MenaDynamicsLLC
+	email = MenaDynamicsLLC@gmail.com
+[color]
+	ui = auto
+[pull]
+	rebase = false
+[core]
+	excludesfile = ~gitignore
+	editor = nano
+[init]
+	defaultBranch = main
+[merge]
+	tool = meld
+		
