@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Recipe</title>
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+	<style>
+		table, th, td {
+			border: 1px solid black;
+			border-collapse: collapse;
+			padding: 5px;
+		}
+	</style>
+	<script>
+		$(document).ready(function() {
+			$('#add-ingredient').on('click', function() {
+				$('#ingredients-table tr:last').after('<tr><td><input type="text" name="ingredient[]" /></td><td><input type="text" name="amount[]" /></td></tr>');
+			});
+
+			$('#calculate').on('click', function() {
+				var ingredients = [];
+				var amounts = [];
+				$('input[name="ingredient[]"]').each(function() {
+					ingredients.push($(this).val());
+				});
+				$('input[name="amount[]"]').each(function() {
+					amounts.push($(this).val());
+				});
+				var servings = $('#servings').val();
+				var results = '';
+				for (var i = 0; i < ingredients.length; i++) {
+					results += '<tr><td>' + ingredients[i] + '</td><td>' + amounts[i] + '</td><td>' + (amounts[i] * servings) + '</td></tr>';
+				}
+				$('#results-table').html(results);
+				$('#results-table').show();
+			});
+		});
+	</script>
+</head>
+<body>
+	<h1>Recipe</h1>
+	<h2>Ingredients</h2>
+	<table id="ingredients-table">
+		<tr>
+			<th>Ingredient</th>
+			<th>Amount</th>
+		</tr>
+		<tr>
+			<td><input type="text" name="ingredient[]" /></td>
+			<td><input type="text" name="amount[]" /></td>
+		</tr>
+	</table>
+	<button id="add-ingredient">Add Ingredient</button>
+	<h2>Results</h2>
+	<p>Servings: <input type="text" id="servings" value="1" /></p>
+	<button id="calculate">Calculate</button>
+	<table id="results-table" style="display:none">
+		<tr>
+			<th>Ingredient</th>
+			<th>Amount</th>
+			<th>Amount for X Servings</th>
+		</tr>
+	</table>
+</body>
+</html>
