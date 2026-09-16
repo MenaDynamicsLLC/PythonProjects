@@ -1,15 +1,20 @@
-# CLM Windows Optimizer - Learning Edition v2.0
+# CLM Windows Optimizer - Working Edition v2.1
 
-A Windows 10/11 diagnostic and conservative maintenance utility for learning
-PowerShell. Requires Windows PowerShell 5.1 or newer. Python is only needed
+A Windows 10/11 utility that can request closure of selected optional apps to
+release their RAM, measure the change, and clean old temporary files. Includes
+diagnostics and commented PowerShell source. Requires Windows PowerShell 5.1 or
+newer. Python is only needed
 to build an optional ZIP, not to run the utility. Administrator access is not
-required. The name is historical: this does not promise a performance boost.
+required. Closing apps may help when memory is constrained; a performance boost
+or a particular amount of reclaimed RAM is not guaranteed.
 
 ## Run
 
 1. Download the repository using **Code > Download ZIP** and extract it.
 2. Open the `clm-windows-optimizer` folder.
 3. Double-click **Run-CLM-Optimizer.cmd**.
+4. Choose **M** to review optional apps, select row numbers and type **CLOSE**.
+   Handle any save prompts, then press Enter to see available RAM before/after.
 
 The launcher runs the adjacent script with a process-only execution-policy
 bypass. It does not change the stored execution policy or request elevation.
@@ -41,7 +46,37 @@ Create a report without opening the menu:
 | 7 | Save a UTF-8 text report to Desktop or an explicitly chosen directory |
 | 8 | Fixed-disk capacity, free space and percentage free |
 | 9 | Task Manager |
+| M | Close selected optional app windows and measure available RAM before/after |
 | S | Windows Storage settings |
+
+## Memory relief and your keep-open apps
+
+Browsers, Grok, PowerShell and VS Code stay open. Only visible windows belonging
+to these process names can be offered: Steam, EpicGamesLauncher, Discord,
+Spotify, Canva, Signal, Telegram, WhatsApp, Zoom, Teams, ms-teams and Skype.
+You choose which of those you do not currently need. Unknown apps, security
+software, Windows components, other sessions and windowless processes are
+excluded. Nothing closes automatically at launch, and no services are stopped.
+
+To keep additional listed apps open, launch from PowerShell:
+
+```powershell
+.\CLM-Windows-Optimizer.ps1 -KeepOpen Spotify,Signal
+```
+
+Selections are previewed and their process identity, start time and window title
+are checked again before requesting closure. Save work before selecting apps:
+closing them may interrupt downloads, calls or playback. The normal
+[CloseMainWindow request](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.process.closemainwindow)
+lets an app prompt or refuse; there is no force-kill fallback. Some apps only
+hide to the tray. The utility reports those as still running; use the app's own
+Exit/Quit command if desired. Apps with unusual process names may not appear.
+
+Window process memory is approximate and excludes other app processes. The
+before/after measurement uses system-wide available RAM and can go down due to
+other activity. It is not a benchmark or proof of savings from a particular app.
+This utility does not flush working sets, alter the page file, or free memory
+still needed by the browsers and work apps you keep open.
 
 Reports use Documents/CLM-Reports if Windows supplies no Desktop path. An
 unwritable destination produces an error; it is never reported as success.
@@ -67,7 +102,7 @@ this utility.
 - Path checks reduce accidental deletion risk but are not an atomic filesystem
   security boundary against another process actively swapping paths.
 
-No processes are killed and no services, registry startup entries, security
+No processes are forcibly killed and no services, registry startup entries, security
 features, installed software or system files are altered. Windows settings
 shortcuts leave decisions to you.
 
@@ -108,12 +143,23 @@ From the repository root on Windows:
 ```powershell
 powershell.exe -NoProfile -File .\clm-windows-optimizer\tests\Test-Optimizer.ps1
 pwsh -NoProfile -File .\clm-windows-optimizer\tests\Test-Optimizer.ps1
+powershell.exe -NoProfile -File .\clm-windows-optimizer\tests\Test-MemoryRelief.ps1
+pwsh -NoProfile -File .\clm-windows-optimizer\tests\Test-MemoryRelief.ps1
 ```
 
-Tests use a temporary fixture and mocked diagnostic queries; they never clean
-the real user TEMP folder. The GitHub Actions workflow checks both PowerShell
+Tests use a temporary fixture, mocked diagnostic queries and simulated app
+processes; they never clean the real user TEMP folder or close real apps. The
+GitHub Actions workflow checks both PowerShell
 5.1 and 7 and builds the package. Manual checks still needed on your machine:
-menu interaction, Settings/Task Manager launch and real CIM availability.
+menu interaction, app-specific close/save/tray behavior, Settings/Task Manager
+launch and real CIM availability.
+
+## Changes in v2.1
+
+Added selective app closure, keep-open protections, changed-process/window
+checks, exit verification and before/after available RAM. Added regression tests
+for protected apps, selection validation, PID reuse, refused closure and memory
+measurement. Updated the package builder for the working edition.
 
 ## Changes from v1.0
 

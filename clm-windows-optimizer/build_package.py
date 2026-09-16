@@ -15,7 +15,7 @@ def build(output: Path) -> Path:
     output.mkdir(parents=True, exist_ok=True)
     for name in FILES:
         shutil.copy2(source / name, output / name)
-    archive = output / "CLM-Windows-Optimizer-v2.0.zip"
+    archive = output / "CLM-Windows-Optimizer-v2.1.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
         for name in FILES:
             bundle.write(output / name, arcname=name)

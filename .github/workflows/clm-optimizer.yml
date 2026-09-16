@@ -14,10 +14,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Windows PowerShell 5.1 regression checks
         shell: powershell
-        run: ./clm-windows-optimizer/tests/Test-Optimizer.ps1
+        run: |
+          ./clm-windows-optimizer/tests/Test-Optimizer.ps1
+          ./clm-windows-optimizer/tests/Test-MemoryRelief.ps1
       - name: PowerShell 7 regression checks
         shell: pwsh
-        run: ./clm-windows-optimizer/tests/Test-Optimizer.ps1
+        run: |
+          ./clm-windows-optimizer/tests/Test-Optimizer.ps1
+          ./clm-windows-optimizer/tests/Test-MemoryRelief.ps1
       - name: Build ZIP
         shell: pwsh
         run: python ./clm-windows-optimizer/build_package.py

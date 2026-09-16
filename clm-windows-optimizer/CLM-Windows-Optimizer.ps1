@@ -1,11 +1,137 @@
 ﻿#Requires -Version 5.1
 <#
-CLM Windows Optimizer - Learning Edition v2.0
+CLM Windows Optimizer - Working Edition v2.1
 Diagnostics and conservative maintenance for Windows. No administrator needed.
 Dot-source this file to load functions without opening the menu.
 #>
 [CmdletBinding()]
-param([switch]$ReportOnly, [string]$ReportDirectory)
+param([switch]$ReportOnly, [string]$ReportDirectory, [string[]]$KeepOpen = @())
+
+function Test-CLMClosableApp {
+    param([Parameter(Mandatory)]$Process, [string[]]$AdditionalKeepOpen = @())
+    # Positive list: browsers, terminals, editors, system/security software and
+    # unknown programs are never candidates. A listed app still needs selection.
+    $optionalApps = @('steam', 'EpicGamesLauncher', 'Discord', 'Spotify', 'Canva',
+        'Signal', 'Telegram', 'WhatsApp', 'Zoom', 'Teams', 'ms-teams', 'Skype')
+    try {
+        if ($Process.Id -eq $PID -or $Process.SessionId -ne ([Diagnostics.Process]::GetCurrentProcess().SessionId)) { return $false }
+        if ($Process.ProcessName -notin $optionalApps -or $Process.ProcessName -in $AdditionalKeepOpen) { return $false }
+        if ($Process.MainWindowHandle -eq [IntPtr]::Zero -or [string]::IsNullOrWhiteSpace($Process.MainWindowTitle)) { return $false }
+        # Also protect Grok/browser/editor content if embedded in a listed app.
+        if ($Process.MainWindowTitle -match '(?i)\b(Grok|Chrome|Edge|Firefox|Brave|Opera|Vivaldi|PowerShell|Visual Studio Code|VS Code)\b') { return $false }
+        return $true
+    } catch { return $false }
+}
+
+function Get-CLMClosableApps {
+    param([string[]]$AdditionalKeepOpen = @())
+    foreach ($process in (Get-Process -ErrorAction Stop)) {
+        try {
+            if (Test-CLMClosableApp -Process $process -AdditionalKeepOpen $AdditionalKeepOpen) {
+                [PSCustomObject]@{
+                    ProcessId = $process.Id
+                    Name = $process.ProcessName
+                    Window = $process.MainWindowTitle
+                    WorkingSet_MiB = [math]::Round($process.WorkingSet64 / 1MB, 1)
+                    StartTime = $process.StartTime
+                }
+            }
+        } catch { Write-Verbose 'An app exited or could not be inspected; skipped.' }
+    }
+}
+
+function Resolve-CLMAppSelection {
+    param([string]$Selection, [object[]]$Apps)
+    if ([string]::IsNullOrWhiteSpace($Selection)) { return }
+    $indices = @()
+    foreach ($part in ($Selection -split ',')) {
+        $number = 0
+        if (-not [int]::TryParse($part.Trim(), [ref]$number) -or $number -lt 1 -or $number -gt $Apps.Count) {
+            throw 'Enter only listed row numbers separated by commas, such as 1,3. Nothing was closed.'
+        }
+        $indices += $number - 1
+    }
+    foreach ($index in ($indices | Select-Object -Unique)) { $Apps[$index] }
+}
+
+function Close-CLMSelectedApps {
+    [CmdletBinding(SupportsShouldProcess)]
+    param([object[]]$Apps, [string[]]$AdditionalKeepOpen = @())
+    foreach ($app in $Apps) {
+        $status = 'Skipped'
+        try {
+            $process = Get-Process -Id $app.ProcessId -ErrorAction Stop
+            # PID reuse or a changed window invalidates the preview selection.
+            if ($process.StartTime -ne $app.StartTime -or $process.ProcessName -ne $app.Name -or
+                $process.MainWindowTitle -ne $app.Window) {
+                $status = 'App changed since preview; skipped'
+            } elseif (-not (Test-CLMClosableApp -Process $process -AdditionalKeepOpen $AdditionalKeepOpen)) {
+                $status = 'Protected or no eligible window; skipped'
+            } elseif ($PSCmdlet.ShouldProcess("$($app.Name) [$($app.ProcessId)]", 'Request normal window close')) {
+                if ($process.CloseMainWindow()) { $status = 'Close requested; exit not yet confirmed' }
+                else { $status = 'App refused close; left running' }
+            } else { $status = 'No close requested' }
+        } catch { $status = "Could not request close: $($_.Exception.Message)" }
+        [PSCustomObject]@{ App = $app.Name; ProcessId = $app.ProcessId; Status = $status }
+    }
+}
+
+function Get-CLMAppExitStatus {
+    param([object[]]$Apps)
+    foreach ($app in $Apps) {
+        # Distinguish a genuinely exited process from one that only hid to tray.
+        $process = Get-Process -Id $app.ProcessId -ErrorAction SilentlyContinue
+        $status = 'Exited'
+        if ($null -ne $process) {
+            try {
+                if ($process.StartTime -eq $app.StartTime) { $status = 'Still running (may be in tray or awaiting input)' }
+            } catch { $status = 'Unable to verify exit' }
+        }
+        [PSCustomObject]@{ App = $app.Name; ProcessId = $app.ProcessId; Status = $status }
+    }
+}
+
+function Get-CLMAvailableMemory {
+    $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+    [PSCustomObject]@{
+        Available_MiB = [math]::Round($os.FreePhysicalMemory / 1KB, 1)
+        Total_MiB = [math]::Round($os.TotalVisibleMemorySize / 1KB, 1)
+    }
+}
+
+function Invoke-CLMMemoryRelief {
+    param([string[]]$AdditionalKeepOpen = @())
+    Write-Host '=== FREE RAM BY CLOSING SELECTED OPTIONAL APPS ===' -ForegroundColor Cyan
+    Write-Host 'Browsers, Grok, PowerShell, VS Code and unrecognized apps stay open.'
+    Write-Host 'Only listed optional apps with visible windows can be selected.'
+    Write-Host 'Save your work first. Closing an app can interrupt calls, playback or downloads.' -ForegroundColor Yellow
+    $apps = @(Get-CLMClosableApps -AdditionalKeepOpen $AdditionalKeepOpen | Sort-Object WorkingSet_MiB -Descending)
+    if ($apps.Count -eq 0) {
+        Write-Host 'No eligible optional app windows found. Nothing was closed.'
+        Write-Host 'Use [2] to inspect RAM use or [9] for Task Manager. Tray apps may need Exit from their tray menu.'
+        return
+    }
+    $rows = for ($i = 0; $i -lt $apps.Count; $i++) {
+        [PSCustomObject]@{ Row = $i + 1; App = $apps[$i].Name; Window = $apps[$i].Window; WorkingSet_MiB = $apps[$i].WorkingSet_MiB }
+    }
+    $rows | Format-Table -Wrap -AutoSize | Out-Host
+    Write-Host 'Memory figures are for each window-owning process, not the entire app or guaranteed savings.'
+    $selected = @(Resolve-CLMAppSelection -Selection (Read-Host 'Rows to close (e.g. 1,3); ENTER cancels') -Apps $apps)
+    if ($selected.Count -eq 0) { Write-Host 'Cancelled.'; return }
+    $selected | Select-Object Name, Window | Format-Table -Wrap -AutoSize | Out-Host
+    if ((Read-Host 'Type CLOSE to request normal closure of these apps').Trim() -cne 'CLOSE') {
+        Write-Host 'Cancelled.'; return
+    }
+    $before = Get-CLMAvailableMemory
+    Close-CLMSelectedApps -Apps $selected -AdditionalKeepOpen $AdditionalKeepOpen | Format-Table -Wrap -AutoSize | Out-Host
+    Write-Host 'Handle any app prompts. Apps may refuse closure or minimize to tray.'
+    [void](Read-Host 'Press ENTER when ready to measure RAM again')
+    Get-CLMAppExitStatus -Apps $selected | Format-Table -Wrap -AutoSize | Out-Host
+    $after = Get-CLMAvailableMemory
+    Write-Host ('Available RAM: {0:N1} MiB before -> {1:N1} MiB after; change: {2:+0.0;-0.0;0.0} MiB.' -f
+        $before.Available_MiB, $after.Available_MiB, ($after.Available_MiB - $before.Available_MiB))
+    Write-Host 'This is a system-wide snapshot; other activity also changes available RAM. No speed gain is guaranteed.'
+}
 
 function Get-CLMSystem {
     $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
@@ -58,7 +184,7 @@ function Get-CLMDisks {
 function Get-CLMReportText {
     # Build text directly instead of starting a host-wide transcript. Failures
     # stay visible in their section and don't discard other diagnostic results.
-    "CLM Windows Optimizer v2.0 - $(Get-Date -Format o)"
+    "CLM Windows Optimizer v2.1 - $(Get-Date -Format o)"
     'RAM sizes are GiB/MiB. Working sets may count shared memory more than once.'
     $sections = [ordered]@{
         SYSTEM = { Get-CLMSystem | Format-List | Out-String -Width 240 }
@@ -186,9 +312,9 @@ function Invoke-CLMTempCleanup {
 }
 
 function Start-CLMMenu {
-    try { $Host.UI.RawUI.WindowTitle = 'CLM Windows Optimizer v2.0' } catch { Write-Verbose 'Host has no window title.' }
+    try { $Host.UI.RawUI.WindowTitle = 'CLM Windows Optimizer v2.1' } catch { Write-Verbose 'Host has no window title.' }
     while ($true) {
-        Write-Host "`n=== CLM WINDOWS OPTIMIZER - Learning Edition v2.0 ===" -ForegroundColor Cyan
+        Write-Host "`n=== CLM WINDOWS OPTIMIZER - Working Edition v2.1 ===" -ForegroundColor Cyan
         Write-Host @'
 [1] RAM / system information
 [2] Biggest RAM users (approximate working sets)
@@ -199,6 +325,7 @@ function Start-CLMMenu {
 [7] Save performance report
 [8] Disk space
 [9] Open Task Manager
+[M] Free RAM: choose optional apps to close (keeps your work apps open)
 [S] Open Windows Storage settings
 [Q] Quit
 '@
@@ -215,6 +342,7 @@ function Start-CLMMenu {
                 '7' { Write-Host ('Report saved: ' + (Export-CLMReport -Directory $ReportDirectory)) -ForegroundColor Green }
                 '8' { Get-CLMDisks | Format-Table -AutoSize | Out-Host }
                 '9' { Start-Process (Join-Path $env:SystemRoot 'System32\Taskmgr.exe') -ErrorAction Stop }
+                'M' { Invoke-CLMMemoryRelief -AdditionalKeepOpen $KeepOpen }
                 'S' { Start-Process 'ms-settings:storagesense' -ErrorAction Stop }
                 default { Write-Host 'Choose one of the listed options.' -ForegroundColor Yellow }
             }
