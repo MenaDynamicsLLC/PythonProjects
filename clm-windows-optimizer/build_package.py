@@ -4,7 +4,8 @@ import argparse
 import shutil
 import zipfile
 
-FILES = ("CLM-Windows-Optimizer.ps1", "Run-CLM-Optimizer.cmd", "README.md")
+FILES = ("CLM-Windows-Optimizer.ps1", "CLM-Toolkit.ps1",
+         "Run-CLM-Toolkit.cmd", "Run-CLM-Optimizer.cmd", "README.md")
 
 
 def build(output: Path) -> Path:
@@ -15,7 +16,7 @@ def build(output: Path) -> Path:
     output.mkdir(parents=True, exist_ok=True)
     for name in FILES:
         shutil.copy2(source / name, output / name)
-    archive = output / "CLM-Windows-Optimizer-v2.1.zip"
+    archive = output / "CLM-Windows-Toolkit-v3.0.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
         for name in FILES:
             bundle.write(output / name, arcname=name)

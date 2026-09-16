@@ -1,11 +1,13 @@
 ﻿#Requires -Version 5.1
 <#
-CLM Windows Optimizer - Working Edition v2.1
+CLM Windows Toolkit v3.0
 Diagnostics and conservative maintenance for Windows. No administrator needed.
 Dot-source this file to load functions without opening the menu.
 #>
 [CmdletBinding()]
 param([switch]$ReportOnly, [string]$ReportDirectory, [string[]]$KeepOpen = @())
+
+. (Join-Path $PSScriptRoot 'CLM-Toolkit.ps1')
 
 function Test-CLMClosableApp {
     param([Parameter(Mandatory)]$Process, [string[]]$AdditionalKeepOpen = @())
@@ -184,7 +186,7 @@ function Get-CLMDisks {
 function Get-CLMReportText {
     # Build text directly instead of starting a host-wide transcript. Failures
     # stay visible in their section and don't discard other diagnostic results.
-    "CLM Windows Optimizer v2.1 - $(Get-Date -Format o)"
+    "CLM Windows Toolkit v3.0 - $(Get-Date -Format o)"
     'RAM sizes are GiB/MiB. Working sets may count shared memory more than once.'
     $sections = [ordered]@{
         SYSTEM = { Get-CLMSystem | Format-List | Out-String -Width 240 }
@@ -312,9 +314,9 @@ function Invoke-CLMTempCleanup {
 }
 
 function Start-CLMMenu {
-    try { $Host.UI.RawUI.WindowTitle = 'CLM Windows Optimizer v2.1' } catch { Write-Verbose 'Host has no window title.' }
+    try { $Host.UI.RawUI.WindowTitle = 'CLM Windows Toolkit v3.0' } catch { Write-Verbose 'Host has no window title.' }
     while ($true) {
-        Write-Host "`n=== CLM WINDOWS OPTIMIZER - Working Edition v2.1 ===" -ForegroundColor Cyan
+        Write-Host "`n=== CLM WINDOWS TOOLKIT v3.0 ===" -ForegroundColor Cyan
         Write-Host @'
 [1] RAM / system information
 [2] Biggest RAM users (approximate working sets)
@@ -325,7 +327,11 @@ function Start-CLMMenu {
 [7] Save performance report
 [8] Disk space
 [9] Open Task Manager
-[M] Free RAM: choose optional apps to close (keeps your work apps open)
+[D] Why is my laptop slow? (~30-second observation)
+[W] Work Mode: choose optional apps to close
+[K] Edit saved keep-open list
+[B] Save comparison snapshot (before or after changes)
+[C] Compare two saved snapshots
 [S] Open Windows Storage settings
 [Q] Quit
 '@
@@ -342,7 +348,15 @@ function Start-CLMMenu {
                 '7' { Write-Host ('Report saved: ' + (Export-CLMReport -Directory $ReportDirectory)) -ForegroundColor Green }
                 '8' { Get-CLMDisks | Format-Table -AutoSize | Out-Host }
                 '9' { Start-Process (Join-Path $env:SystemRoot 'System32\Taskmgr.exe') -ErrorAction Stop }
-                'M' { Invoke-CLMMemoryRelief -AdditionalKeepOpen $KeepOpen }
+                'D' { Invoke-CLMSlowdownCheck }
+                { $_ -in @('W','M') } {
+                    $workProfile = Get-CLMWorkProfile
+                    $protectedNames = @(@($workProfile.KeepOpen) + @($KeepOpen) | Sort-Object -Unique)
+                    Invoke-CLMMemoryRelief -AdditionalKeepOpen $protectedNames
+                }
+                'K' { Edit-CLMWorkProfile }
+                'B' { Write-Host ('Snapshot saved: ' + (Save-CLMSnapshot)) -ForegroundColor Green }
+                'C' { Show-CLMSnapshotComparison }
                 'S' { Start-Process 'ms-settings:storagesense' -ErrorAction Stop }
                 default { Write-Host 'Choose one of the listed options.' -ForegroundColor Yellow }
             }

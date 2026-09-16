@@ -1,4 +1,4 @@
-name: CLM Optimizer checks
+name: CLM Toolkit checks
 on:
   push:
     paths: ['clm-windows-optimizer/**', '.github/workflows/clm-optimizer.yml']
@@ -17,11 +17,13 @@ jobs:
         run: |
           ./clm-windows-optimizer/tests/Test-Optimizer.ps1
           ./clm-windows-optimizer/tests/Test-MemoryRelief.ps1
+          ./clm-windows-optimizer/tests/Test-Toolkit.ps1
       - name: PowerShell 7 regression checks
         shell: pwsh
         run: |
           ./clm-windows-optimizer/tests/Test-Optimizer.ps1
           ./clm-windows-optimizer/tests/Test-MemoryRelief.ps1
+          ./clm-windows-optimizer/tests/Test-Toolkit.ps1
       - name: Build ZIP
         shell: pwsh
         run: python ./clm-windows-optimizer/build_package.py

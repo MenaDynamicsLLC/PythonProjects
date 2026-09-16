@@ -1,8 +1,8 @@
-# CLM Windows Optimizer - Working Edition v2.1
+# CLM Windows Toolkit v3.0
 
-A Windows 10/11 utility that can request closure of selected optional apps to
-release their RAM, measure the change, and clean old temporary files. Includes
-diagnostics and commented PowerShell source. Requires Windows PowerShell 5.1 or
+A Windows 10/11 toolkit with a short CPU/RAM/disk observation, saved Work Mode
+preferences, before/after snapshot comparisons, selective app closure and
+conservative temporary-file cleanup. Includes commented PowerShell source. Requires Windows PowerShell 5.1 or
 newer. Python is only needed
 to build an optional ZIP, not to run the utility. Administrator access is not
 required. Closing apps may help when memory is constrained; a performance boost
@@ -12,9 +12,10 @@ or a particular amount of reclaimed RAM is not guaranteed.
 
 1. Download the repository using **Code > Download ZIP** and extract it.
 2. Open the `clm-windows-optimizer` folder.
-3. Double-click **Run-CLM-Optimizer.cmd**.
-4. Choose **M** to review optional apps, select row numbers and type **CLOSE**.
-   Handle any save prompts, then press Enter to see available RAM before/after.
+3. Double-click **Run-CLM-Toolkit.cmd**.
+4. Start with **D** to observe performance. Use **B** to save a baseline,
+   **W** to review optional apps to close, then **B** again and **C** to compare.
+   Use **K** to edit the keep-open list. The old launcher still works too.
 
 The launcher runs the adjacent script with a process-only execution-policy
 bypass. It does not change the stored execution policy or request elevation.
@@ -46,8 +47,55 @@ Create a report without opening the menu:
 | 7 | Save a UTF-8 text report to Desktop or an explicitly chosen directory |
 | 8 | Fixed-disk capacity, free space and percentage free |
 | 9 | Task Manager |
-| M | Close selected optional app windows and measure available RAM before/after |
+| D | Observe CPU, available RAM and physical-disk activity for about 30 seconds |
+| W | Work Mode: close selected optional apps using your saved keep-open list |
+| K | View and edit the persistent keep-open list |
+| B | Save a JSON snapshot for later comparison |
+| C | Compare two snapshots from the same computer |
 | S | Windows Storage settings |
+
+## Slowdown check, Work Mode and comparisons
+
+**D - Slowdown check:** Collects seven observations, scheduled five seconds
+apart. Slow WMI queries can extend the duration beyond 30 seconds. This is a
+read-only observation of your current workload, not a stress test. It reports
+average total CPU activity, minimum available RAM and per-disk average busy
+percentage. Disk busy is calculated from 100 minus the reported idle percentage
+and clamped to 0-100. A missing metric stays blank and its error is displayed.
+
+The tool flags these heuristics only after at least three valid observations:
+CPU or a disk averages at least 80% busy, or available RAM is below 10% in at
+least half of valid RAM samples. These are clues, not proof of a bottleneck,
+paging, overheating or hardware failure. Short spikes can fall between samples.
+Different disks are kept separate. Counter readings are provided by Windows;
+sampling itself adds a small amount of work. See Microsoft's
+[physical disk performance class](https://learn.microsoft.com/en-us/previous-versions/aa394262(v=vs.85)).
+
+**K / W - Saved Work Mode:** Preferences are stored in
+`%LOCALAPPDATA%\CLM-Toolkit\work-profile.json`. The default list includes
+browsers, Grok, PowerShell, VS Code and Windows Terminal. Add process names such
+as Spotify or Signal to keep additional optional apps open; `.exe` is optional.
+Saving replaces the additional list only. Core system/unknown-app protection
+cannot be removed through the profile. Command-line `-KeepOpen` names are added
+for that launch. A corrupt saved profile blocks Work Mode with a visible error
+instead of silently ignoring your preferences. You can rename that JSON file
+and reopen Work Mode to use the defaults. **M** remains an alias for **W**.
+
+**B / C - Snapshot comparison:** Save once before changes, once afterward, then
+choose those rows in C. JSON files stay in
+`%LOCALAPPDATA%\CLM-Toolkit\Snapshots`. Available RAM and disk-space deltas
+are shown; positive values mean more available capacity. Each snapshot also
+contains the computer/model, time and top memory users for inspection. This is
+not a speed benchmark: workload changes can dominate the results. Comparing
+snapshots from different computer names/models or reversing their timestamps is
+refused. Disk comparison matches drive letter and capacity, not hardware serial
+number; missing, ambiguous or resized drives are omitted. The older text reports
+from option 7 cannot be used for C; create JSON snapshots with B.
+
+Preferences and snapshots remain on your Windows machine and are not uploaded.
+They persist independently of the downloaded app folder. Nothing runs in the
+background after you quit. This edition is for Windows; it does not run on
+Parrot Security or modify a separate Linux laptop.
 
 ## Memory relief and your keep-open apps
 
@@ -145,14 +193,25 @@ powershell.exe -NoProfile -File .\clm-windows-optimizer\tests\Test-Optimizer.ps1
 pwsh -NoProfile -File .\clm-windows-optimizer\tests\Test-Optimizer.ps1
 powershell.exe -NoProfile -File .\clm-windows-optimizer\tests\Test-MemoryRelief.ps1
 pwsh -NoProfile -File .\clm-windows-optimizer\tests\Test-MemoryRelief.ps1
+powershell.exe -NoProfile -File .\clm-windows-optimizer\tests\Test-Toolkit.ps1
+pwsh -NoProfile -File .\clm-windows-optimizer\tests\Test-Toolkit.ps1
 ```
 
 Tests use a temporary fixture, mocked diagnostic queries and simulated app
-processes; they never clean the real user TEMP folder or close real apps. The
+processes; they never clean the real user TEMP folder or close real apps.
+Toolkit tests also read actual Windows CIM memory/CPU/disk counters and save
+a snapshot inside a disposable test directory. The
 GitHub Actions workflow checks both PowerShell
 5.1 and 7 and builds the package. Manual checks still needed on your machine:
 menu interaction, app-specific close/save/tray behavior, Settings/Task Manager
 launch and real CIM availability.
+
+## Changes in v3.0
+
+Renamed the menu to CLM Windows Toolkit and added a new launcher. Added the
+slowdown observation, persistent Work Mode list and JSON snapshot comparison,
+with profile validation, same-computer checks and partial-counter handling.
+Existing optimizer filenames remain for compatibility; extract all files together.
 
 ## Changes in v2.1
 
