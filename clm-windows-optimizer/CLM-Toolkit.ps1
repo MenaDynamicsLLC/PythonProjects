@@ -38,12 +38,16 @@ function Save-CLMWorkProfile {
     [void][IO.Directory]::CreateDirectory($Directory)
     $file = Join-Path $Directory 'work-profile.json'
     $temp = Join-Path $Directory ([guid]::NewGuid().ToString('N') + '.tmp')
+    $backup = $temp + '.bak'
     try {
         $json = [PSCustomObject]@{SchemaVersion=1; KeepOpen=$names} | ConvertTo-Json -Depth 4
         [IO.File]::WriteAllText($temp, $json, [Text.UTF8Encoding]::new($true))
-        if ([IO.File]::Exists($file)) { [IO.File]::Replace($temp, $file, $null) }
+        if ([IO.File]::Exists($file)) { [IO.File]::Replace($temp, $file, $backup) }
         else { [IO.File]::Move($temp, $file) }
-    } finally { if ([IO.File]::Exists($temp)) { [IO.File]::Delete($temp) } }
+    } finally {
+        if ([IO.File]::Exists($temp)) { [IO.File]::Delete($temp) }
+        if ([IO.File]::Exists($backup)) { [IO.File]::Delete($backup) }
+    }
     $file
 }
 
