@@ -1,0 +1,3 @@
+CLM_Performance_*.txt
+__pycache__/
+clm-windows-diagnostics/dist/
