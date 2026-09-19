@@ -11,10 +11,18 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+
       - name: Validate syntax and cleanup safeguards in Windows PowerShell 5.1
         shell: powershell
         run: ./clm-windows-diagnostics/Test-CLM.ps1
-      - name: Exercise Python packaging
+
+      - name: Validate Python sources
+        shell: powershell
+        run: |
+          python -m py_compile ./clm-windows-diagnostics/CLM-Windows-App.py ./clm-windows-diagnostics/build_app.py ./clm-windows-diagnostics/build_package.py
+          if ($LASTEXITCODE -ne 0) { throw 'Python syntax validation failed' }
+
+      - name: Exercise source packaging
         shell: powershell
         run: |
           python ./clm-windows-diagnostics/build_package.py
@@ -22,3 +30,29 @@ jobs:
           foreach ($name in @('CLM-Windows-Diagnostics.ps1', 'Launch-CLM.cmd', 'README.md')) {
             if (-not (Test-Path "./clm-windows-diagnostics/dist/$name")) { throw "Missing $name" }
           }
+
+      - name: Install PyInstaller
+        shell: powershell
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller installation failed' }
+
+      - name: Build Windows GUI executable
+        shell: powershell
+        run: |
+          python ./clm-windows-diagnostics/build_app.py --output ./clm-windows-diagnostics/dist
+          if ($LASTEXITCODE -ne 0) { throw 'GUI build failed' }
+          $exe = "./clm-windows-diagnostics/dist/CLM-Windows-Diagnostics.exe"
+          if (-not (Test-Path $exe -PathType Leaf)) { throw 'Missing Windows executable' }
+          Get-Item $exe | Select-Object Name, Length, LastWriteTime
+
+      - name: Upload Windows application
+        uses: actions/upload-artifact@v6
+        with:
+          name: CLM-Windows-Diagnostics-Windows
+          path: |
+            clm-windows-diagnostics/dist/CLM-Windows-Diagnostics.exe
+            clm-windows-diagnostics/dist/CLM-Windows-Diagnostics.ps1
+            clm-windows-diagnostics/dist/Launch-CLM.cmd
+            clm-windows-diagnostics/dist/README.md
+          if-no-files-found: error
