@@ -1,6 +1,11 @@
 #Requires -Version 5.1
-param([switch]$NoMenu)
-# CLM System Diagnostics & Cleanup - Learning Edition 1.1
+param(
+    [switch]$NoMenu,
+    [ValidateSet('System','Memory','Startup','OpenStartup','CleanupPreview','Cleanup','Diagnostics','Report')]
+    [string]$Action,
+    [switch]$ConfirmCleanup
+)
+# CLM System Diagnostics & Cleanup - Learning Edition 1.2
 # No administrator rights required. No registry, service or security changes.
 
 function Get-CLMMemoryUsers {
@@ -98,6 +103,11 @@ function Get-CLMCleanupCandidates {
 }
 
 function Invoke-CLMCleanup {
+    param(
+        [switch]$PreviewOnly,
+        [switch]$ConfirmDelete
+    )
+
     $root = Get-CLMCleanupRoot
     $cutoff = (Get-Date).AddDays(-7)
     $candidates = @(Get-CLMCleanupCandidates -Root $root -Cutoff $cutoff)
@@ -105,10 +115,21 @@ function Invoke-CLMCleanup {
     Write-Host 'Only top-level files created and modified over seven days ago are eligible.'
     Write-Host 'Folders and links are skipped. Close applications first; old files may still be needed.' -ForegroundColor Yellow
     if ($candidates.Count -eq 0) { Write-Host 'No eligible files.'; return }
+
     $candidates | Select-Object Name, LastWriteTime, @{N='Size_MiB';E={[math]::Round($_.Length / 1MB, 2)}} |
         Format-Table -Wrap | Out-Host
     Write-Host "Preview: $($candidates.Count) files. Deletion does not use the Recycle Bin."
-    if ((Read-Host 'Type DELETE to delete these files') -cne 'DELETE') { Write-Host 'Cleanup cancelled.'; return }
+
+    if ($PreviewOnly) {
+        Write-Host 'Preview only: no files were deleted.'
+        return
+    }
+
+    if (-not $ConfirmDelete -and (Read-Host 'Type DELETE to delete these files') -cne 'DELETE') {
+        Write-Host 'Cleanup cancelled.'
+        return
+    }
+
     $deleted = 0; $skipped = 0; $bytes = 0L
     foreach ($candidate in $candidates) {
         try {
@@ -151,10 +172,38 @@ function Export-CLMReport {
     Write-Host 'Report may contain unavailable-section warnings. Review it before sharing; it includes computer and application paths.'
 }
 
-if (-not $NoMenu) {
-    if ($env:OS -ne 'Windows_NT') { throw 'This utility requires Windows.' }
+function Invoke-CLMAction {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Name
+    )
+    switch ($Name) {
+        'System' { Show-CLMSystem }
+        'Memory' { Show-CLMMemory }
+        'Startup' { Show-CLMStartup }
+        'OpenStartup' { Start-Process 'ms-settings:startupapps' -ErrorAction Stop }
+        'CleanupPreview' { Invoke-CLMCleanup -PreviewOnly }
+        'Cleanup' {
+            if (-not $ConfirmCleanup) {
+                throw 'Cleanup action requires -ConfirmCleanup. Run CleanupPreview first.'
+            }
+            Invoke-CLMCleanup -ConfirmDelete
+        }
+        'Diagnostics' { Show-CLMDiagnostics }
+        'Report' { Export-CLMReport }
+        default { throw "Unknown action: $Name" }
+    }
+}
+
+if ($env:OS -ne 'Windows_NT' -and (-not $NoMenu -or $Action)) {
+    throw 'This utility requires Windows.'
+}
+
+if ($Action) {
+    Invoke-CLMAction -Name $Action
+} elseif (-not $NoMenu) {
     do {
-        Write-Host "`nCLM SYSTEM DIAGNOSTICS & CLEANUP - Learning Edition 1.1" -ForegroundColor Cyan
+        Write-Host "`nCLM SYSTEM DIAGNOSTICS & CLEANUP - Learning Edition 1.2" -ForegroundColor Cyan
         Write-Host '[1] RAM / system information'
         Write-Host '[2] Biggest memory users'
         Write-Host '[3] Startup programs'
