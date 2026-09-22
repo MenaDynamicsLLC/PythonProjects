@@ -1,4 +1,4 @@
-"""CLM Windows Diagnostics & Cleanup graphical front end.
+"""CLM Windows Toolkit graphical front end.
 
 The GUI stays intentionally thin: PowerShell remains the maintained diagnostics
 engine so the commands are still readable and learnable.
@@ -15,19 +15,26 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
 
-APP_TITLE = "CLM Windows Diagnostics & Cleanup"
+APP_TITLE = "CLM Windows Toolkit"
+APP_VERSION = "1.3.0"
+PUBLISHER = "Mena Dynamics, LLC"
 SCRIPT_NAME = "CLM-Windows-Diagnostics.ps1"
+ICON_NAME = "clm-toolkit.ico"
+
+
+def resource_file(name: str) -> Path:
+    """Find a file beside the EXE first, then inside the PyInstaller bundle."""
+    if getattr(sys, "frozen", False):
+        external = Path(sys.executable).resolve().with_name(name)
+        if external.exists():
+            return external
+        return Path(getattr(sys, "_MEIPASS")) / name
+    return Path(__file__).resolve().with_name(name)
 
 
 def powershell_script() -> Path:
     """Prefer the inspectable PS1 beside the EXE; fall back to the bundled copy."""
-    if getattr(sys, "frozen", False):
-        external = Path(sys.executable).resolve().with_name(SCRIPT_NAME)
-        if external.exists():
-            return external
-        bundle_root = Path(getattr(sys, "_MEIPASS"))
-        return bundle_root / SCRIPT_NAME
-    return Path(__file__).resolve().with_name(SCRIPT_NAME)
+    return resource_file(SCRIPT_NAME)
 
 
 def run_powershell(action: str, confirm_cleanup: bool = False) -> tuple[int, str]:
@@ -75,6 +82,13 @@ class CLMApp(tk.Tk):
         self.geometry("980x680")
         self.minsize(820, 560)
 
+        icon = resource_file(ICON_NAME)
+        if icon.is_file():
+            try:
+                self.iconbitmap(default=str(icon))
+            except tk.TclError:
+                pass
+
         self.status_var = tk.StringVar(value="Ready")
         self._buttons: list[ttk.Button] = []
 
@@ -93,7 +107,7 @@ class CLMApp(tk.Tk):
         ).pack(anchor="w")
         ttk.Label(
             heading,
-            text="Learning Edition 1.2 — PowerShell engine with a Windows GUI",
+            text=f"Version {APP_VERSION} — {PUBLISHER} • PowerShell engine with a Windows GUI",
         ).pack(anchor="w", pady=(2, 0))
 
         body = ttk.Panedwindow(outer, orient="horizontal")
@@ -138,7 +152,7 @@ class CLMApp(tk.Tk):
         status.pack(fill="x", pady=(8, 0))
 
         self.write_output(
-            "CLM is ready.\n\n"
+            "CLM Windows Toolkit is ready.\n\n"
             "This GUI does not disable services, edit the registry, remove software, "
             "or change Windows Security settings. TEMP cleanup always previews eligible "
             "files before deletion."
