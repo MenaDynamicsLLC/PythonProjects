@@ -11,14 +11,58 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+
       - name: Validate syntax and cleanup safeguards in Windows PowerShell 5.1
         shell: powershell
         run: ./clm-windows-diagnostics/Test-CLM.ps1
-      - name: Exercise Python packaging
+
+      - name: Validate Python sources
+        shell: powershell
+        run: |
+          python -m py_compile ./clm-windows-diagnostics/CLM-Windows-App.py ./clm-windows-diagnostics/build_app.py ./clm-windows-diagnostics/build_package.py
+          if ($LASTEXITCODE -ne 0) { throw 'Python syntax validation failed' }
+
+      - name: Exercise source packaging
         shell: powershell
         run: |
           python ./clm-windows-diagnostics/build_package.py
           if ($LASTEXITCODE -ne 0) { throw 'Builder failed' }
-          foreach ($name in @('CLM-Windows-Diagnostics.ps1', 'Launch-CLM.cmd', 'README.md')) {
+          foreach ($name in @('CLM-Windows-Diagnostics.ps1', 'Launch-CLM.cmd', 'README.md', 'Sign-CLM.ps1', 'version_info.txt')) {
             if (-not (Test-Path "./clm-windows-diagnostics/dist/$name")) { throw "Missing $name" }
           }
+
+      - name: Install Windows build dependencies
+        shell: powershell
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller pillow
+          if ($LASTEXITCODE -ne 0) { throw 'Build dependency installation failed' }
+
+      - name: Build Windows GUI executable
+        shell: powershell
+        run: |
+          python ./clm-windows-diagnostics/build_app.py --output ./clm-windows-diagnostics/dist
+          if ($LASTEXITCODE -ne 0) { throw 'GUI build failed' }
+
+          $exe = "./clm-windows-diagnostics/dist/CLM-Windows-Toolkit.exe"
+          if (-not (Test-Path $exe -PathType Leaf)) { throw 'Missing Windows executable' }
+
+          $info = (Get-Item $exe).VersionInfo
+          if ($info.ProductName -ne 'CLM Windows Toolkit') { throw "Unexpected ProductName: $($info.ProductName)" }
+          if ($info.CompanyName -ne 'Mena Dynamics, LLC') { throw "Unexpected CompanyName: $($info.CompanyName)" }
+          if ($info.ProductVersion -notlike '1.3.0*') { throw "Unexpected ProductVersion: $($info.ProductVersion)" }
+
+          Get-Item $exe | Select-Object Name, Length, LastWriteTime
+          $info | Select-Object ProductName, CompanyName, FileVersion, ProductVersion
+
+      - name: Upload Windows application
+        uses: actions/upload-artifact@v6
+        with:
+          name: CLM-Windows-Toolkit-Windows
+          path: |
+            clm-windows-diagnostics/dist/CLM-Windows-Toolkit.exe
+            clm-windows-diagnostics/dist/clm-toolkit.ico
+            clm-windows-diagnostics/dist/CLM-Windows-Diagnostics.ps1
+            clm-windows-diagnostics/dist/Launch-CLM.cmd
+            clm-windows-diagnostics/dist/Sign-CLM.ps1
+            clm-windows-diagnostics/dist/README.md
+          if-no-files-found: error

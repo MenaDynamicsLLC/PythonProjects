@@ -1,76 +1,108 @@
-# CLM System Diagnostics & Cleanup
+# CLM Windows Toolkit
 
-Learning Edition 1.1, for Windows 10/11 with Windows PowerShell 5.1.
+Version 1.3.0 for Windows 10/11, published by **Mena Dynamics, LLC**.
 
-## Run
+CLM Windows Toolkit is a learning-oriented Windows diagnostics and conservative cleanup utility. The PowerShell engine remains readable and inspectable, while the Python/Tkinter front end provides a Windows GUI.
 
-Download the project folder, keep its files together, and double-click
-`Launch-CLM.cmd`. Python and administrator rights are not required.
-The launcher sets execution policy Bypass only for its PowerShell process;
-it does not change the machine policy or override organization policy.
-Read the script before running it.
+## What it does
 
-Alternatively, from PowerShell in this folder:
+- Shows Windows, computer model, installed RAM, and current free/used RAM.
+- Shows the largest grouped process working sets.
+- Lists startup programs and opens Windows Startup Apps settings.
+- Shows local disk capacity and free space.
+- Runs a conservative TEMP cleanup preview before any deletion.
+- Saves a timestamped diagnostics report to the Desktop.
+- Does not disable services, edit the registry, change Windows Security, uninstall software, terminate processes, or request automatic elevation.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CLM-Windows-Diagnostics.ps1
+## Run from source
+
+Keep the project files together and double-click:
+
+```text
+Launch-CLM.cmd
 ```
 
-## Features and limits
+That starts the PowerShell menu. Administrator rights are not required.
 
-- System information, installed RAM modules, grouped process working sets,
-  startup commands, and local disk capacity/free space.
-- All diagnostics includes every diagnostic section. Failed sections are
-  reported as warnings while the other sections continue.
-- Startup Apps settings shortcut and a uniquely named Desktop text report.
-- Memory and disk units are GiB/MiB. Process working sets include shared pages
-  and cannot be added up to obtain unique physical RAM use.
-- These are snapshots, not hardware health tests or performance benchmarks.
-  Cleanup frees disk space; it does not directly optimize CPU or RAM.
+To run the GUI from Python:
+
+```powershell
+python .\CLM-Windows-App.py
+```
+
+## Build the Windows app
+
+The packaged application is:
+
+```text
+CLM-Windows-Toolkit.exe
+```
+
+The executable embeds:
+
+- Product name: CLM Windows Toolkit
+- Company: Mena Dynamics, LLC
+- Version: 1.3.0
+- Original filename: CLM-Windows-Toolkit.exe
+- A generated CLM application icon
+
+Install the build dependencies and run the builder on Windows:
+
+```powershell
+python -m pip install pyinstaller pillow
+python .\build_app.py
+```
+
+The default output folder is `dist`.
+
+## Code signing
+
+GitHub Actions builds an unsigned executable because the private signing key is intentionally not stored in the repository.
+
+For local development, `Sign-CLM.ps1` signs the built executable with the newest CurrentUser code-signing certificate whose subject contains `Mena Dynamics` and that has a private key:
+
+```powershell
+.\Sign-CLM.ps1
+```
+
+If the certificate is self-signed and has not yet been trusted for the current Windows user:
+
+```powershell
+.\Sign-CLM.ps1 -TrustCurrentUser
+```
+
+The helper prints the Authenticode status and the SHA-256 hash after signing. Signing changes the executable bytes, so the post-signing hash is expected to differ from the unsigned build.
+
+Never commit a PFX file, private key, certificate password, or signing secret to the repository.
+
+A self-signed certificate is appropriate for development and machines where you deliberately trust that certificate. Public distribution requires a certificate or signing service trusted by the target Windows systems.
 
 ## Cleanup safeguards
 
-Cleanup supports only `%LOCALAPPDATA%\Temp` when it matches `%TEMP%`.
-It refuses custom/redirected TEMP paths and linked directory ancestors.
-Only top-level regular files whose creation and modification times are both
-older than seven days are previewed. All subdirectories and reparse points
-(including symbolic links and junctions) are skipped; there is no recursive deletion.
-Use Windows Storage settings if you need broader cleanup.
+Cleanup supports only the standard `%LOCALAPPDATA%\Temp` location when it matches `%TEMP%`.
 
-Close applications and inspect the preview. Old, unlocked files may still be
-needed. Type `DELETE` to confirm; any other response cancels. Files are
-rechecked before deletion, but this is not an atomic filesystem operation.
-Deletion is permanent, without the Recycle Bin. Locked files and other failures
-are reported individually, with deleted/skipped counts and the summed sizes
-of successfully deleted files (not a measurement of physical space reclaimed).
+Only top-level regular files whose creation and modification times are both older than seven days are eligible. Directories and reparse points, including symbolic links and junctions, are skipped. There is no recursive deletion.
 
-No registry edits, service changes, security changes, software removal, process
-termination, or automatic elevation are performed.
+The GUI always performs a preview first and asks for confirmation. The PowerShell menu requires the user to type `DELETE`. Files are revalidated immediately before deletion. Deletion is permanent and does not use the Recycle Bin.
 
 ## Reports and privacy
 
-Reports are saved on your Desktop as `CLM_Performance_*.txt`. They can include
-computer names, usernames in paths, and application startup commands. Review
-them before sharing. The repository ignores these filenames; that does not
-protect reports you manually upload or rename.
-
-## Optional Python packaging exercise
-
-The original Python wrapper generated Windows files. Here the PowerShell script
-is the single maintained source, and Python packages it with the launcher/docs:
+Reports are saved as:
 
 ```text
-python build_package.py --output ./dist
+CLM_Performance_<timestamp>_<id>.txt
 ```
 
-The destination is created automatically. The default is a `dist` folder beside
-the builder, so no `/mnt/data` dependency remains.
+They can contain computer names, usernames in paths, application names, and startup command paths. Review reports before sharing them.
 
 ## Validation
 
-`Test-CLM.ps1` checks Windows PowerShell syntax and cleanup safeguards using a
-temporary fixture. It tests cancellation, old-file deletion, recent-file and
-folder preservation, and rejection of an unexpected TEMP location. It never
-targets your real TEMP contents. The GitHub Actions workflow runs it on Windows
-and checks that the Python builder produces its expected files. Interactive
-Settings behavior and actual CIM/transcript output still need a Windows smoke test.
+`Test-CLM.ps1` checks Windows PowerShell syntax and cleanup safeguards using a temporary fixture. GitHub Actions also:
+
+- validates the Python sources,
+- exercises source packaging,
+- builds the Windows GUI with PyInstaller,
+- verifies the embedded product/company/version metadata,
+- and uploads the Windows application artifact.
+
+Interactive Windows behavior and Authenticode trust still require a Windows smoke test.
