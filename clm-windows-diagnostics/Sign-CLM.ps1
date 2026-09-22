@@ -1,13 +1,26 @@
 param(
-    [string]$ExePath = (Join-Path $PSScriptRoot 'dist\CLM-Windows-Toolkit.exe'),
+    [string]$ExePath,
     [switch]$TrustCurrentUser
 )
 
 $ErrorActionPreference = 'Stop'
 
-if (-not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
-    throw "Executable not found: $ExePath"
+if ([string]::IsNullOrWhiteSpace($ExePath)) {
+    $sameFolder = Join-Path $PSScriptRoot 'CLM-Windows-Toolkit.exe'
+    $distFolder = Join-Path $PSScriptRoot 'dist\CLM-Windows-Toolkit.exe'
+
+    if (Test-Path -LiteralPath $sameFolder -PathType Leaf) {
+        $ExePath = $sameFolder
+    }
+    elseif (Test-Path -LiteralPath $distFolder -PathType Leaf) {
+        $ExePath = $distFolder
+    }
+    else {
+        throw "CLM-Windows-Toolkit.exe was not found beside this script or in the dist folder."
+    }
 }
+
+$ExePath = (Resolve-Path -LiteralPath $ExePath).Path
 
 $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
     Where-Object { $_.Subject -like '*Mena Dynamics*' -and $_.HasPrivateKey } |
