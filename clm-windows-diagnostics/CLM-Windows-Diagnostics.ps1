@@ -5,7 +5,7 @@ param(
     [string]$Action,
     [switch]$ConfirmCleanup
 )
-# CLM System Diagnostics & Cleanup - Learning Edition 1.2
+# CLM Windows Toolkit - Learning Edition 1.3
 # No administrator rights required. No registry, service or security changes.
 
 function Get-CLMMemoryUsers {
@@ -203,7 +203,7 @@ if ($Action) {
     Invoke-CLMAction -Name $Action
 } elseif (-not $NoMenu) {
     do {
-        Write-Host "`nCLM SYSTEM DIAGNOSTICS & CLEANUP - Learning Edition 1.2" -ForegroundColor Cyan
+        Write-Host "`nCLM WINDOWS TOOLKIT - Learning Edition 1.3" -ForegroundColor Cyan
         Write-Host '[1] RAM / system information'
         Write-Host '[2] Biggest memory users'
         Write-Host '[3] Startup programs'
