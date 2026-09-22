@@ -1,3 +1,6 @@
 CLM_Performance_*.txt
 __pycache__/
 clm-windows-diagnostics/dist/
+clm-windows-diagnostics/.pyinstaller-build/
+clm-windows-diagnostics/.pyinstaller-spec/
+clm-windows-diagnostics/clm-toolkit.ico
