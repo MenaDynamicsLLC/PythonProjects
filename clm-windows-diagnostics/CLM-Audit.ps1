@@ -10,10 +10,14 @@ function Get-CLMPerformanceSnapshot {
         $cpu = Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'" -ErrorAction Stop
         $disk = Get-CimInstance Win32_PerfFormattedData_PerfDisk_PhysicalDisk -Filter "Name='_Total'" -ErrorAction Stop
         $mem = Get-CimInstance Win32_PerfFormattedData_PerfOS_Memory -ErrorAction Stop
+        $idle = [double]$disk.PercentIdleTime
+        $busy = [math]::Max(0, [math]::Min(100, (100 - $idle)))
         $rows += [PSCustomObject]@{
             CpuPercent = [double]$cpu.PercentProcessorTime
-            DiskBusyPercent = [double]$disk.PercentDiskTime
+            DiskBusyPercent = $busy
             DiskQueueLength = [double]$disk.AvgDiskQueueLength
+            DiskReadMiBPerSec = [double]$disk.DiskReadBytesPersec / 1MB
+            DiskWriteMiBPerSec = [double]$disk.DiskWriteBytesPersec / 1MB
             AvailableMiB = [double]$mem.AvailableMBytes
             PagesPerSec = [double]$mem.PagesPersec
         }
@@ -23,6 +27,8 @@ function Get-CLMPerformanceSnapshot {
     $cpuStats = $rows | Measure-Object CpuPercent -Average -Maximum
     $diskStats = $rows | Measure-Object DiskBusyPercent -Average -Maximum
     $queueStats = $rows | Measure-Object DiskQueueLength -Average -Maximum
+    $readStats = $rows | Measure-Object DiskReadMiBPerSec -Average -Maximum
+    $writeStats = $rows | Measure-Object DiskWriteMiBPerSec -Average -Maximum
     $memStats = $rows | Measure-Object AvailableMiB -Minimum
     $pageStats = $rows | Measure-Object PagesPerSec -Average -Maximum
 
@@ -34,6 +40,10 @@ function Get-CLMPerformanceSnapshot {
         Peak_Disk_Busy_Percent = [math]::Round($diskStats.Maximum, 1)
         Average_Disk_Queue = [math]::Round($queueStats.Average, 2)
         Peak_Disk_Queue = [math]::Round($queueStats.Maximum, 2)
+        Average_Disk_Read_MiBps = [math]::Round($readStats.Average, 2)
+        Peak_Disk_Read_MiBps = [math]::Round($readStats.Maximum, 2)
+        Average_Disk_Write_MiBps = [math]::Round($writeStats.Average, 2)
+        Peak_Disk_Write_MiBps = [math]::Round($writeStats.Maximum, 2)
         Lowest_Available_RAM_MiB = [math]::Round($memStats.Minimum, 0)
         Average_Pages_Per_Sec = [math]::Round($pageStats.Average, 1)
         Peak_Pages_Per_Sec = [math]::Round($pageStats.Maximum, 1)
@@ -42,6 +52,7 @@ function Get-CLMPerformanceSnapshot {
 
 function Show-CLMPerformance {
     Write-Host 'Sampling normal activity for about five seconds. This is not a stress test.' -ForegroundColor Yellow
+    Write-Host 'Disk busy is derived from idle time and normalized to a 0-100% utilization estimate.' -ForegroundColor DarkGray
     Get-CLMPerformanceSnapshot -Samples 5 | Format-List | Out-Host
 }
 
