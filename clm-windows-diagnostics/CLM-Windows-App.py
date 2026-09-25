@@ -33,13 +33,22 @@ def resource_file(name: str) -> Path:
     return Path(__file__).resolve().with_name(name)
 
 
-def powershell_script() -> Path:
-    return resource_file(SCRIPT_NAME)
+def powershell_runtime() -> tuple[Path, Path]:
+    """Use an external engine only when both inspectable PowerShell files are present."""
+    if getattr(sys, "frozen", False):
+        external_dir = Path(sys.executable).resolve().parent
+        external_script = external_dir / SCRIPT_NAME
+        external_audit = external_dir / AUDIT_NAME
+        if external_script.exists() and external_audit.exists():
+            return external_script, external_audit
+        bundle_dir = Path(getattr(sys, "_MEIPASS"))
+        return bundle_dir / SCRIPT_NAME, bundle_dir / AUDIT_NAME
+    source_dir = Path(__file__).resolve().parent
+    return source_dir / SCRIPT_NAME, source_dir / AUDIT_NAME
 
 
 def run_powershell(action: str, confirm_cleanup: bool = False) -> tuple[int, str]:
-    script = powershell_script()
-    audit = resource_file(AUDIT_NAME)
+    script, audit = powershell_runtime()
     if not script.exists():
         return 2, f"PowerShell engine not found: {script}"
     if not audit.exists():
@@ -256,7 +265,8 @@ def main() -> int:
         messagebox.showerror(APP_TITLE, "This application requires Windows.")
         return 1
 
-    missing = [str(resource_file(name)) for name in (SCRIPT_NAME, AUDIT_NAME) if not resource_file(name).exists()]
+    script, audit = powershell_runtime()
+    missing = [str(path) for path in (script, audit) if not path.exists()]
     if missing:
         messagebox.showerror(APP_TITLE, "Required toolkit file(s) not found:\n" + "\n".join(missing))
         return 2
