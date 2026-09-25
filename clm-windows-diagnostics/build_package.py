@@ -10,7 +10,7 @@ def main():
     parser.add_argument('--output', type=Path, default=source / 'dist')
     destination = parser.parse_args().output.expanduser().resolve()
     destination.mkdir(parents=True, exist_ok=True)
-    for name in ('CLM-Windows-Diagnostics.ps1', 'Launch-CLM.cmd', 'README.md'):
+    for name in ('CLM-Windows-Diagnostics.ps1', 'CLM-Audit.ps1', 'Launch-CLM.cmd', 'README.md'):
         original = source / name
         target = destination / name
         if original.resolve() != target:
