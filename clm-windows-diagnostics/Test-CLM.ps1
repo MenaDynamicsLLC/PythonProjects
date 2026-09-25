@@ -10,6 +10,17 @@ function Assert-CLMTest([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
 }
 
+$signatureTools = @(Get-CLMRemoteAccessSignatures | Select-Object -ExpandProperty Tool)
+Assert-CLMTest ($signatureTools -contains 'Supremo') 'Supremo signature missing.'
+Assert-CLMTest ($signatureTools -contains 'AnyDesk') 'AnyDesk signature missing.'
+Assert-CLMTest ($signatureTools -contains 'TeamViewer') 'TeamViewer signature missing.'
+
+$securityClass = Get-CLMStartupClassification -Name 'SecurityHealth' -Command ''
+Assert-CLMTest ($securityClass.Category -eq 'System/security') 'SecurityHealth classification failed.'
+$remoteClass = Get-CLMStartupClassification -Name 'Supremo' -Command 'C:\Program Files (x86)\Supremo\Supremo.exe /SVCRUN'
+Assert-CLMTest ($remoteClass.Category -eq 'REVIEW - remote access') 'Remote-access classification failed.'
+$unknownClass = Get-CLMStartupClassification -Name 'ExampleUnknownApp' -Command 'C:\Example\app.exe'
+Assert-CLMTest ($unknownClass.Category -eq 'Manual review') 'Unknown startup item should require manual review.'
 $originalTemp = $env:TEMP
 $originalLocal = $env:LOCALAPPDATA
 $fixture = Join-Path $originalTemp ('CLM-test-' + [guid]::NewGuid().ToString('N'))
