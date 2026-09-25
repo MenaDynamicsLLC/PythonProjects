@@ -19,6 +19,6 @@ jobs:
         run: |
           python ./clm-windows-diagnostics/build_package.py
           if ($LASTEXITCODE -ne 0) { throw 'Builder failed' }
-          foreach ($name in @('CLM-Windows-Diagnostics.ps1', 'Launch-CLM.cmd', 'README.md')) {
+          foreach ($name in @('CLM-Windows-Diagnostics.ps1', 'CLM-Audit.ps1', 'Launch-CLM.cmd', 'README.md')) {
             if (-not (Test-Path "./clm-windows-diagnostics/dist/$name")) { throw "Missing $name" }
           }
