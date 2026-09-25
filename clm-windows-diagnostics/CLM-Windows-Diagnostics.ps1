@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 param([switch]$NoMenu)
-# CLM System Diagnostics & Cleanup - Learning Edition 1.1
+# CLM System Diagnostics & Cleanup - Learning Edition 2.0
 # No administrator rights required. No registry, service or security changes.
 
 function Get-CLMMemoryUsers {
@@ -41,21 +41,24 @@ function Show-CLMStartup {
         Select-Object Name, Location, Command | Format-Table -Wrap -AutoSize | Out-Host
 }
 
+. (Join-Path $PSScriptRoot 'CLM-Audit.ps1')
+
 function Show-CLMDiagnostics {
     # A failed section does not prevent collection of the remaining sections.
     $sections = [ordered]@{
         SYSTEM = { Show-CLMSystem }
+        'HEALTH SUMMARY' = { Show-CLMHealthSummary }
+        'PERFORMANCE SNAPSHOT' = { Show-CLMPerformance }
         MEMORY = { Show-CLMMemory }
-        STARTUP = { Show-CLMStartup }
-        DISKS = {
-            Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' -ErrorAction Stop |
-                Select-Object DeviceID, @{N='Size_GiB';E={[math]::Round($_.Size / 1GB, 1)}},
-                    @{N='Free_GiB';E={[math]::Round($_.FreeSpace / 1GB, 1)}} |
-                Format-Table -AutoSize | Out-Host
-        }
+        DISKS = { Show-CLMDisks }
+        'STARTUP AUDIT' = { Show-CLMStartupAudit }
+        SECURITY = { Show-CLMSecurity }
+        'REMOTE ACCESS AUDIT' = { Show-CLMRemoteAccessAudit }
+        'OPTIONAL SOFTWARE REVIEW' = { Show-CLMSoftwareReview }
     }
     foreach ($section in $sections.GetEnumerator()) {
-        Write-Host "`n$($section.Key)" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host $section.Key -ForegroundColor Cyan
         try { & $section.Value } catch { Write-Warning "$($section.Key) unavailable: $($_.Exception.Message)" }
     }
 }
@@ -148,31 +151,42 @@ function Export-CLMReport {
     }
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw 'Report file was not created.' }
     Write-Host "Report saved to: $file" -ForegroundColor Green
-    Write-Host 'Report may contain unavailable-section warnings. Review it before sharing; it includes computer and application paths.'
+    Write-Host 'Review before sharing: reports may include computer names, software names, application paths, and remote IP addresses.'
 }
 
 if (-not $NoMenu) {
     if ($env:OS -ne 'Windows_NT') { throw 'This utility requires Windows.' }
     do {
-        Write-Host "`nCLM SYSTEM DIAGNOSTICS & CLEANUP - Learning Edition 1.1" -ForegroundColor Cyan
-        Write-Host '[1] RAM / system information'
+        Write-Host ""
+        Write-Host 'CLM SYSTEM DIAGNOSTICS & CLEANUP - Learning Edition 2.0' -ForegroundColor Cyan
+        Write-Host '[1] System / RAM information'
         Write-Host '[2] Biggest memory users'
-        Write-Host '[3] Startup programs'
-        Write-Host '[4] Open Startup Apps settings'
-        Write-Host '[5] Preview and clean old TEMP files'
-        Write-Host '[6] Run all diagnostics'
-        Write-Host '[7] Save Desktop report'
+        Write-Host '[3] Performance snapshot (~5 sec)'
+        Write-Host '[4] Physical + logical disks'
+        Write-Host '[5] Startup audit'
+        Write-Host '[6] Security status'
+        Write-Host '[7] Remote-access audit'
+        Write-Host '[8] Save incident snapshot'
+        Write-Host '[9] Preview and clean old TEMP files'
+        Write-Host '[10] Run complete health + security audit'
+        Write-Host '[11] Save Desktop report'
+        Write-Host '[12] Open Startup Apps settings'
         Write-Host '[Q] Quit'
         $choice = (Read-Host 'Choose').Trim().ToUpperInvariant()
         try {
             switch ($choice) {
                 '1' { Show-CLMSystem }
                 '2' { Show-CLMMemory }
-                '3' { Show-CLMStartup }
-                '4' { Start-Process 'ms-settings:startupapps' -ErrorAction Stop }
-                '5' { Invoke-CLMCleanup }
-                '6' { Show-CLMDiagnostics }
-                '7' { Export-CLMReport }
+                '3' { Show-CLMPerformance }
+                '4' { Show-CLMDisks }
+                '5' { Show-CLMStartupAudit }
+                '6' { Show-CLMSecurity }
+                '7' { Show-CLMRemoteAccessAudit }
+                '8' { Export-CLMIncidentSnapshot }
+                '9' { Invoke-CLMCleanup }
+                '10' { Show-CLMDiagnostics }
+                '11' { Export-CLMReport }
+                '12' { Start-Process 'ms-settings:startupapps' -ErrorAction Stop }
                 'Q' { }
                 default { Write-Warning 'Invalid selection.' }
             }
