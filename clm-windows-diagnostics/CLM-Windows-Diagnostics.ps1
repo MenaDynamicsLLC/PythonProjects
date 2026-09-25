@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-param([switch]$NoMenu)
+param([switch]$NoMenu, [string]$Action, [switch]$ConfirmCleanup)
 # CLM System Diagnostics & Cleanup - Learning Edition 2.0
 # No administrator rights required. No registry, service or security changes.
 
@@ -100,26 +100,33 @@ function Get-CLMCleanupCandidates {
     }
 }
 
-function Invoke-CLMCleanup {
+function Get-CLMCleanupPlan {
     $root = Get-CLMCleanupRoot
     $cutoff = (Get-Date).AddDays(-7)
     $candidates = @(Get-CLMCleanupCandidates -Root $root -Cutoff $cutoff)
-    Write-Host "TEMP: $root"
+    [PSCustomObject]@{ Root=$root; Cutoff=$cutoff; Candidates=$candidates }
+}
+
+function Show-CLMCleanupPreview {
+    $plan = Get-CLMCleanupPlan
+    Write-Host "TEMP: $($plan.Root)"
     Write-Host 'Only top-level files created and modified over seven days ago are eligible.'
     Write-Host 'Folders and links are skipped. Close applications first; old files may still be needed.' -ForegroundColor Yellow
-    if ($candidates.Count -eq 0) { Write-Host 'No eligible files.'; return }
-    $candidates | Select-Object Name, LastWriteTime, @{N='Size_MiB';E={[math]::Round($_.Length / 1MB, 2)}} |
+    if ($plan.Candidates.Count -eq 0) { Write-Host 'No eligible files.'; return }
+    $plan.Candidates | Select-Object Name, LastWriteTime, @{N='Size_MiB';E={[math]::Round($_.Length / 1MB, 2)}} |
         Format-Table -Wrap | Out-Host
-    Write-Host "Preview: $($candidates.Count) files. Deletion does not use the Recycle Bin."
-    if ((Read-Host 'Type DELETE to delete these files') -cne 'DELETE') { Write-Host 'Cleanup cancelled.'; return }
+    Write-Host "Preview: $($plan.Candidates.Count) files. Deletion does not use the Recycle Bin."
+}
+
+function Remove-CLMCleanupPlan {
+    param([Parameter(Mandatory)]$Plan)
     $deleted = 0; $skipped = 0; $bytes = 0L
-    foreach ($candidate in $candidates) {
+    foreach ($candidate in $Plan.Candidates) {
         try {
-            # Revalidate after confirmation in case the environment or file changed.
-            if ((Get-CLMCleanupRoot) -ine $root) { throw 'TEMP location changed.' }
+            if ((Get-CLMCleanupRoot) -ine $Plan.Root) { throw 'TEMP location changed.' }
             $current = Get-Item -LiteralPath $candidate.FullName -Force -ErrorAction Stop
             if ($current.PSIsContainer -or ($current.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
-                $current.LastWriteTime -ge $cutoff -or $current.CreationTime -ge $cutoff -or
+                $current.LastWriteTime -ge $Plan.Cutoff -or $current.CreationTime -ge $Plan.Cutoff -or
                 $current.LastWriteTimeUtc -ne $candidate.LastWriteTimeUtc -or $current.Length -ne $candidate.Length) {
                 throw 'File changed or is no longer eligible.'
             }
@@ -133,6 +140,26 @@ function Invoke-CLMCleanup {
         }
     }
     Write-Host "Deleted: $deleted; skipped/failed: $skipped; deleted file sizes: $([math]::Round($bytes / 1MB, 2)) MiB."
+}
+
+function Invoke-CLMCleanup {
+    $plan = Get-CLMCleanupPlan
+    Write-Host "TEMP: $($plan.Root)"
+    Write-Host 'Only top-level files created and modified over seven days ago are eligible.'
+    Write-Host 'Folders and links are skipped. Close applications first; old files may still be needed.' -ForegroundColor Yellow
+    if ($plan.Candidates.Count -eq 0) { Write-Host 'No eligible files.'; return }
+    $plan.Candidates | Select-Object Name, LastWriteTime, @{N='Size_MiB';E={[math]::Round($_.Length / 1MB, 2)}} |
+        Format-Table -Wrap | Out-Host
+    Write-Host "Preview: $($plan.Candidates.Count) files. Deletion does not use the Recycle Bin."
+    if ((Read-Host 'Type DELETE to delete these files') -cne 'DELETE') { Write-Host 'Cleanup cancelled.'; return }
+    Remove-CLMCleanupPlan -Plan $plan
+}
+
+function Invoke-CLMConfirmedCleanup {
+    if (-not $ConfirmCleanup) { throw 'Cleanup requires explicit confirmation from the GUI.' }
+    $plan = Get-CLMCleanupPlan
+    if ($plan.Candidates.Count -eq 0) { Write-Host 'No eligible files.'; return }
+    Remove-CLMCleanupPlan -Plan $plan
 }
 
 function Export-CLMReport {
@@ -152,6 +179,35 @@ function Export-CLMReport {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw 'Report file was not created.' }
     Write-Host "Report saved to: $file" -ForegroundColor Green
     Write-Host 'Review before sharing: reports may include computer names, software names, application paths, and remote IP addresses.'
+}
+
+
+function Invoke-CLMAction {
+    param([Parameter(Mandatory)][string]$Name)
+    switch ($Name.Trim().ToUpperInvariant()) {
+        'SYSTEM' { Show-CLMSystem }
+        'HEALTH' { Show-CLMHealthSummary }
+        'MEMORY' { Show-CLMMemory }
+        'PERFORMANCE' { Show-CLMPerformance }
+        'DISKS' { Show-CLMDisks }
+        'STARTUP' { Show-CLMStartupAudit }
+        'SECURITY' { Show-CLMSecurity }
+        'REMOTEACCESS' { Show-CLMRemoteAccessAudit }
+        'SOFTWAREREVIEW' { Show-CLMSoftwareReview }
+        'INCIDENT' { Export-CLMIncidentSnapshot }
+        'DIAGNOSTICS' { Show-CLMDiagnostics }
+        'REPORT' { Export-CLMReport }
+        'OPENSTARTUP' { Start-Process 'ms-settings:startupapps' -ErrorAction Stop }
+        'CLEANUPPREVIEW' { Show-CLMCleanupPreview }
+        'CLEANUP' { Invoke-CLMConfirmedCleanup }
+        default { throw "Unknown action: $Name" }
+    }
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Action)) {
+    if ($env:OS -ne 'Windows_NT') { throw 'This utility requires Windows.' }
+    Invoke-CLMAction -Name $Action
+    return
 }
 
 if (-not $NoMenu) {
