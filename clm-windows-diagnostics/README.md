@@ -1,6 +1,6 @@
 # CLM System Diagnostics & Cleanup
 
-Learning Edition 1.1, for Windows 10/11 with Windows PowerShell 5.1.
+Learning Edition 2.0, for Windows 10/11 with Windows PowerShell 5.1.
 
 ## Run
 
@@ -18,16 +18,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CLM-Windows-Diagnostic
 
 ## Features and limits
 
-- System information, installed RAM modules, grouped process working sets,
-  startup commands, and local disk capacity/free space.
-- All diagnostics includes every diagnostic section. Failed sections are
-  reported as warnings while the other sections continue.
-- Startup Apps settings shortcut and a uniquely named Desktop text report.
-- Memory and disk units are GiB/MiB. Process working sets include shared pages
-  and cannot be added up to obtain unique physical RAM use.
-- These are snapshots, not hardware health tests or performance benchmarks.
-  Cleanup frees disk space; it does not directly optimize CPU or RAM.
+- System information, installed RAM modules, grouped process working sets, and startup inventory.
+- Five-sample CPU, disk-busy, disk-queue, paging, and available-memory snapshot.
+- Physical disk media type, bus, size and reported health, plus logical-drive free-space percentages.
+- Startup audit with conservative system/security, hardware/driver, optional, remote-access-review, and manual-review categories.
+- Microsoft Defender and Windows Firewall status when the Windows cmdlets are available.
+- Remote-access audit across installed apps, processes, services, startup entries, and correlated established TCP connections.
+- Review-only checks for selected legacy/optional utilities. A match is not an automatic uninstall recommendation.
+- Incident snapshot export with processes, services, startup entries, TCP connections, remote-access findings, and SHA-256 hashes when paths can be resolved.
+- Complete Desktop report and safe TEMP cleanup remain available.
 
+Remote-support software is not automatically malicious. CLM flags recognized tools so the technician can verify that the device owner expects them.
+Performance snapshots are clues, not hardware benchmarks or final diagnoses. Process working sets include shared pages and cannot be added to obtain unique physical RAM use.
 ## Cleanup safeguards
 
 Cleanup supports only `%LOCALAPPDATA%\Temp` when it matches `%TEMP%`.
@@ -50,7 +52,8 @@ termination, or automatic elevation are performed.
 ## Reports and privacy
 
 Reports are saved on your Desktop as `CLM_Performance_*.txt`. They can include
-computer names, usernames in paths, and application startup commands. Review
+computer names, usernames in paths, installed software, startup commands, application paths,
+and remote IP addresses. Incident snapshots can contain even more system detail. Review
 them before sharing. The repository ignores these filenames; that does not
 protect reports you manually upload or rename.
 
@@ -68,8 +71,8 @@ the builder, so no `/mnt/data` dependency remains.
 
 ## Validation
 
-`Test-CLM.ps1` checks Windows PowerShell syntax and cleanup safeguards using a
-temporary fixture. It tests cancellation, old-file deletion, recent-file and
+`Test-CLM.ps1` checks Windows PowerShell syntax, audit helper behavior, remote-access
+signature coverage, and cleanup safeguards using a temporary fixture. It tests cancellation, old-file deletion, recent-file and
 folder preservation, and rejection of an unexpected TEMP location. It never
 targets your real TEMP contents. The GitHub Actions workflow runs it on Windows
 and checks that the Python builder produces its expected files. Interactive
