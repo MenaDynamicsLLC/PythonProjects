@@ -21,6 +21,17 @@ $remoteClass = Get-CLMStartupClassification -Name 'Supremo' -Command 'C:\Program
 Assert-CLMTest ($remoteClass.Category -eq 'REVIEW - remote access') 'Remote-access classification failed.'
 $unknownClass = Get-CLMStartupClassification -Name 'ExampleUnknownApp' -Command 'C:\Example\app.exe'
 Assert-CLMTest ($unknownClass.Category -eq 'Manual review') 'Unknown startup item should require manual review.'
+$dispatcher = Get-Command Invoke-CLMAction -ErrorAction SilentlyContinue
+Assert-CLMTest ($null -ne $dispatcher) 'GUI action dispatcher is missing.'
+
+$unknownRejected = $false
+try { Invoke-CLMAction -Name 'DefinitelyNotAnAction' } catch { $unknownRejected = $true }
+Assert-CLMTest $unknownRejected 'Unknown GUI action was accepted.'
+
+$cleanupRejected = $false
+try { Invoke-CLMConfirmedCleanup } catch { $cleanupRejected = $true }
+Assert-CLMTest $cleanupRejected 'Noninteractive cleanup ran without explicit confirmation.'
+
 $originalTemp = $env:TEMP
 $originalLocal = $env:LOCALAPPDATA
 $fixture = Join-Path $originalTemp ('CLM-test-' + [guid]::NewGuid().ToString('N'))
